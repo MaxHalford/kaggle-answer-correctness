@@ -11,9 +11,11 @@ dataset/*
 
 features/*
 !features/.gitkeep
+!features/extract.py
 
 kernel/*
 !kernel/.gitkeep
+!kernel/package.py
 
 models/*
 !models/.gitkeep

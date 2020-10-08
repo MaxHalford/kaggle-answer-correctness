@@ -1,0 +1,212 @@
+import abc
+import inspect
+import pathlib
+import pickle
+import sys
+
+import chime
+import pandas as pd
+import tqdm
+
+
+data_dir = pathlib.Path('data')
+
+if data_dir.joinpath('train.pkl').exists():
+    print('Loading .pkl')
+    train = pd.read_pickle(data_dir.joinpath('train.pkl'))
+
+else:
+
+    print('Loading .csv')
+    dtypes = {
+        'row_id': 'int64',
+        'timestamp': 'int64',
+        'user_id': 'int32',
+        'content_id': 'int16',
+        'content_type_id': 'int8',
+        'task_container_id': 'int16',
+        'user_answer': 'int8',
+        'answered_correctly': 'int8',
+        'prior_question_elapsed_time': 'float32',
+        'prior_question_had_explanation': 'boolean'
+    }
+    train = pd.read_csv(
+        data_dir.joinpath('train.csv'),
+        index_col='row_id',
+        dtype=dtypes
+    )
+
+    # The `task_container_id` variable is supposed to be monotonically increasing for each user.
+    # But that doesn't seem to be the case. For instance, see user 115.
+    # Therefore, I renumber the tasks to make sure they're monotonically increasing for each user.
+    train['task_container_id'] = train.groupby('user_id')['task_container_id'].transform(lambda x: pd.factorize(x)[0]).astype('int16')
+
+    train.to_pickle(data_dir.joinpath('train.pkl'))
+
+#print(train.head(5))
+
+
+# We can now iterate over batches of the training data. The idea is that each batch is going to
+# behave like the data that the `env.iter_test` function will yield in the Kaggle kernel. We will
+# thus call each batch a "group" to adopt the same terminology.
+
+def iter_groups(train):
+
+    prev_group = pd.DataFrame()
+
+    for _, group in iter(train.groupby('task_container_id')):
+        questions = group.query('content_type_id == 0')
+        yield questions, prev_group
+        prev_group = group
+
+#groups = iter_groups(train[:10_000])
+#questions, prev_group = next(groups)
+#print(questions.head())
+#print(prev_group.head())
+#next_questions, next_prev_group = next(groups)
+#print(next_questions.head())
+#print(next_prev_group.head())
+
+# As you can see, the first group contains the first interaction of each user. The next group
+# contains the second interaction, along with the correctness information for the first group.
+
+# The goal is now to build stateful feature extractors. Each such feature extractor should provide
+# the ability to produce features for each row in a group. The feature extractor should then be
+# able to update itself with the new information provided by the group. Here is the interface:
+
+class Extractor(abc.ABC):
+
+    def __str__(self):
+        return self.__class__.__name__
+
+    @abc.abstractmethod
+    def transform(self, questions):
+        pass
+
+
+class StatefulExtractor(Extractor):
+
+    @abc.abstractmethod
+    def update(self, questions, prev_group):
+        pass
+
+
+class AvgCorrect(StatefulExtractor):
+
+    def __init__(self, prior_mean, prior_size):
+        self.prior_mean = prior_mean
+        self.prior_size = prior_size
+        self.stats = pd.DataFrame(columns=['mean', 'size'])
+
+    def __str__(self):
+        return f'{self.__class__.__name__}_prior_mean={self.prior_mean}_prior_size={self.prior_size}'
+
+    def update(self, questions, prev_group):
+
+        # Initialize statistics for new users
+        new = pd.Index(questions['user_id']).difference(self.stats.index)
+        if len(new) > 0:
+            prior = pd.DataFrame(
+                {'mean': self.prior_mean, 'size': self.prior_size},
+                index=new
+            )
+            self.stats = self.stats.append(prior)
+
+        # Nothing to do if nothing happened before
+        if len(prev_group) == 0:
+            return
+
+        # Compute the new statistics
+        stats = (
+            prev_group
+            .query('content_type_id == 0')
+            .groupby('user_id')['answered_correctly']
+            .agg(['mean', 'size'])
+        )
+
+        # Update the old statistics with the new statistics
+        users = stats.index
+        m = stats.loc[users, 'size']
+        self.stats.loc[users, 'size'] += m
+        n = self.stats.loc[users, 'size']
+        avg = self.stats.loc[users, 'mean']
+        new_avg = stats.loc[users, 'mean']
+        self.stats.loc[users, 'mean'] += m * (new_avg - avg) / n
+
+    def transform(self, questions):
+        avgs = self.stats.loc[questions['user_id'], 'mean'].rename('avg_correct')
+        avgs.index = questions.index
+        return avgs
+
+
+class QuestionDifficulty(Extractor):
+
+    def __init__(self, train):
+        stats = train.query('content_type_id == 0').groupby('content_id')['answered_correctly'].agg(['mean', 'size'])
+        self.bayes_avg = stats.eval('(mean * size + .6 * 100) / (size + 100)').rename('question_difficulty')
+
+    def transform(self, questions):
+
+        new = pd.Index(questions['content_id']).difference(self.bayes_avg.index)
+        if len(new) > 0:
+            prior = pd.Series({'mean': .6}, index=new)
+            self.bayes_avg = self.bayes_avg.append(prior)
+
+        avgs = self.bayes_avg.loc[questions['content_id']]
+        avgs.index = questions.index
+        return avgs
+
+
+# Extracting features for the training set
+
+extractors = [
+    AvgCorrect(.6, 20),
+    QuestionDifficulty(train),
+    PriorQuestion(),
+    UserCount()
+]
+
+# We filter out the extractors that have already been run]
+for i, extractor in reversed(list(enumerate(extractors))):
+    if pathlib.Path(f'features/{extractor}_features.csv').exists():
+        extractors.pop(i)
+        print(f'- Skipping {extractor}')
+    else:
+        print(f'- Doing {extractor}')
+
+if not extractors:
+    chime.warning()
+    sys.exit('All of the features have already been extracted.')
+
+# Now we loop through the training data in group order
+for i, (questions, prev_group) in tqdm.tqdm(enumerate(iter_groups(train)), total=10_000):
+
+    if i == 0:
+        chime.info()  # indicates when the groupby starts
+
+    for extractor in extractors:
+
+        if isinstance(extractor, StatefulExtractor):
+            extractor.update(questions, prev_group)
+        features = extractor.transform(questions)
+
+        path = f'features/{extractor}_features.csv'
+        if i == 0:
+            features.to_csv(path)
+        else:
+            features.to_csv(path, mode='a', header=False)
+
+# We save the extractors so that we can reuse them during the testing phase
+for extractor in extractors:
+    with open(f'features/{extractor}_extractor.pkl', 'wb') as f:
+        pickle.dump(extractor, f)
+
+# In order to be able to load an extractor, we also need its source code, so we save the source
+# code of each extractor
+with open('features/module.py', 'w') as module:
+    print('import abc\nimport pandas as pd\n', file=module)
+    for obj in list(locals().values()):
+        if inspect.isclass(obj) and issubclass(obj, Extractor):
+            print(inspect.getsource(obj), end='\n', file=module)
+
+chime.success()
