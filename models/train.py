@@ -30,6 +30,7 @@ features = features.join(targets)
 targets = features.pop('answered_correctly')
 features.head()
 
+np.random.seed(42)
 samples = np.random.choice(targets.index, size=3_000_000, replace=False)
 X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
     features.loc[samples], targets.loc[samples],
@@ -47,7 +48,7 @@ model = lgb.train(
     params={
         'learning_rate': 0.01,
         'objective': 'binary',
-        'metrics': 'auc, logloss',
+        'metrics': 'auc',
         'boost_from_average': False
     },
     train_set=fit,
