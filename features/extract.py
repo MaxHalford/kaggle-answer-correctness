@@ -161,9 +161,7 @@ class QuestionDifficulty(Extractor):
 
 extractors = [
     AvgCorrect(.6, 20),
-    QuestionDifficulty(train),
-    PriorQuestion(),
-    UserCount()
+    QuestionDifficulty(train)
 ]
 
 # We filter out the extractors that have already been run]
