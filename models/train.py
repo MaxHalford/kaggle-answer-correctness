@@ -16,8 +16,8 @@ features = pd.concat(
     ),
     axis='columns'
 )
+features['part'] = features['part'].astype('category')
 print(features.head())
-chime.info()
 
 # Let's join the target variable.
 targets = pd.read_csv(
@@ -43,7 +43,6 @@ X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
 fit = lgb.Dataset(X_fit, y_fit)
 val = lgb.Dataset(X_val, y_val, reference=fit)
 
-chime.info()
 model = lgb.train(
     params={
         'learning_rate': 0.01,
@@ -61,4 +60,3 @@ model = lgb.train(
 
 val_score = metrics.roc_auc_score(y_val, model.predict(X_val))
 model.save_model(f'models/model_{val_score:.4f}.lgb')
-chime.success()

@@ -14,6 +14,7 @@ for file in pathlib.Path('dataset').iterdir():
 for extractor in glob.glob('features/*.pkl'):
     shutil.copy(extractor, 'dataset')
 shutil.copy('features/module.py', 'dataset')
+shutil.copy('features/parts.pkl', 'dataset')
 
 # Model
 models = glob.glob('models/*.lgb')

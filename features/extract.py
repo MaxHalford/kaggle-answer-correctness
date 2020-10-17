@@ -46,6 +46,33 @@ else:
 #print(train.head(5))
 
 
+question_parts = (
+    pd.read_csv('data/questions.csv', usecols=['question_id', 'part'])
+    .rename(columns={'question_id': 'content_id'})
+    .assign(content_type_id=0)
+)
+
+lecture_parts = (
+    pd.read_csv('data/lectures.csv', usecols=['lecture_id', 'part'])
+    .rename(columns={'lecture_id': 'content_id'})
+    .assign(content_type_id=1)
+)
+
+parts = pd.concat((question_parts, lecture_parts))
+parts = parts.set_index(['content_type_id', 'content_id'])['part']
+parts = parts.map({
+    1: 'photographs',
+    2: 'question_response',
+    3: 'conversations',
+    4: 'talks',
+    5: 'incomplete_sentences',
+    6: 'text_completion',
+    7: 'passages'
+})
+parts = parts.astype('category')
+parts.to_pickle('features/parts.pkl')
+
+
 # We can now iterate over batches of the training data. The idea is that each batch is going to
 # behave like the data that the `env.iter_test` function will yield in the Kaggle kernel. We will
 # thus call each batch a "group" to adopt the same terminology.
@@ -55,6 +82,7 @@ def iter_groups(train):
     prev_group = pd.DataFrame()
 
     for _, group in iter(train.groupby('task_container_id')):
+        group = group.join(parts, on=['content_type_id', 'content_id'])
         questions = group.query('content_type_id == 0')
         yield questions, prev_group
         prev_group = group
@@ -96,7 +124,7 @@ class AvgCorrect(StatefulExtractor):
     def __init__(self, prior_mean, prior_size):
         self.prior_mean = prior_mean
         self.prior_size = prior_size
-        self.stats = pd.DataFrame(columns=['mean', 'size'])
+        self.stats = pd.DataFrame(columns=['mean', 'size'], dtype=float)
 
     def __str__(self):
         return f'{self.__class__.__name__}_prior_mean={self.prior_mean}_prior_size={self.prior_size}'
@@ -157,11 +185,33 @@ class QuestionDifficulty(Extractor):
         return avgs
 
 
+class Part(Extractor):
+
+    def transform(self, questions):
+        return questions['part']
+
+
+class BundleSize(Extractor):
+
+    def transform(self, questions):
+        bundle_sizes = questions['user_id'].value_counts().rename('bundle_size')
+        return questions.join(bundle_sizes, on='user_id')['bundle_size']
+
+
+class BundlePosition(Extractor):
+
+    def transform(self, questions):
+        return questions.groupby('user_id').cumcount().rename('bundle_position')
+
+
 # Extracting features for the training set
 
 extractors = [
     AvgCorrect(.6, 20),
-    QuestionDifficulty(train)
+    QuestionDifficulty(train),
+    Part(),
+    #BundleSize(),
+    #BundlePosition()
 ]
 
 # We filter out the extractors that have already been run]
@@ -178,9 +228,6 @@ if not extractors:
 
 # Now we loop through the training data in group order
 for i, (questions, prev_group) in tqdm.tqdm(enumerate(iter_groups(train)), total=10_000):
-
-    if i == 0:
-        chime.info()  # indicates when the groupby starts
 
     for extractor in extractors:
 
