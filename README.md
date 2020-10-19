@@ -20,6 +20,7 @@ Solution to the Riiid! Answer Correctness Prediction competition on Kaggle
 - Extract features from a graph representation
 - Figure out time by reading [this](https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/189351#) and [this](https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/189465)
 - Exponentially weighted means
+- Make sure extractors that should be stateful are in fact stateful
 
 ## Reproducing results
 
@@ -49,31 +50,45 @@ kaggle datasets init --path dataset
 ```
 
 Training until validation scores don't improve for 20 rounds
-[100]   fit's auc: 0.746732     val's auc: 0.746691
-[200]   fit's auc: 0.747706     val's auc: 0.747595
-[300]   fit's auc: 0.748557     val's auc: 0.748429
-[400]   fit's auc: 0.749175     val's auc: 0.749036
-[500]   fit's auc: 0.749642     val's auc: 0.749472
-[600]   fit's auc: 0.749978     val's auc: 0.749756
-[700]   fit's auc: 0.750197     val's auc: 0.749918
-[800]   fit's auc: 0.750352     val's auc: 0.750007
-[900]   fit's auc: 0.750475     val's auc: 0.750067
-[1000]  fit's auc: 0.750587     val's auc: 0.750116
-[1100]  fit's auc: 0.750684     val's auc: 0.750155
-[1200]  fit's auc: 0.750769     val's auc: 0.750183
-[1300]  fit's auc: 0.750857     val's auc: 0.750212
-[1400]  fit's auc: 0.75094      val's auc: 0.750237
-[1500]  fit's auc: 0.751024     val's auc: 0.750257
-[1600]  fit's auc: 0.751106     val's auc: 0.750277
-[1700]  fit's auc: 0.751187     val's auc: 0.750294
-[1800]  fit's auc: 0.751266     val's auc: 0.750309
-[1900]  fit's auc: 0.751348     val's auc: 0.750323
-[2000]  fit's auc: 0.751429     val's auc: 0.750339
-[2100]  fit's auc: 0.751505     val's auc: 0.750353
-[2200]  fit's auc: 0.751582     val's auc: 0.750365
-[2300]  fit's auc: 0.75166      val's auc: 0.750377
-[2400]  fit's auc: 0.751732     val's auc: 0.750385
-[2500]  fit's auc: 0.751806     val's auc: 0.750393
-[2600]  fit's auc: 0.751878     val's auc: 0.750399
+[100]   fit's auc: 0.747558     val's auc: 0.747522
+[200]   fit's auc: 0.749077     val's auc: 0.748978
+[300]   fit's auc: 0.750209     val's auc: 0.750058
+[400]   fit's auc: 0.751028     val's auc: 0.750815
+[500]   fit's auc: 0.7516       val's auc: 0.751331
+[600]   fit's auc: 0.751998     val's auc: 0.751642
+[700]   fit's auc: 0.752271     val's auc: 0.751832
+[800]   fit's auc: 0.752479     val's auc: 0.751953
+[900]   fit's auc: 0.752637     val's auc: 0.752031
+[1000]  fit's auc: 0.752767     val's auc: 0.752081
+[1100]  fit's auc: 0.752902     val's auc: 0.752135
+[1200]  fit's auc: 0.753033     val's auc: 0.752177
+[1300]  fit's auc: 0.753155     val's auc: 0.752215
+[1400]  fit's auc: 0.753272     val's auc: 0.752246
+[1500]  fit's auc: 0.753387     val's auc: 0.752272
+[1600]  fit's auc: 0.7535       val's auc: 0.7523
+[1700]  fit's auc: 0.753611     val's auc: 0.752327
+[1800]  fit's auc: 0.753724     val's auc: 0.752352
+[1900]  fit's auc: 0.75383      val's auc: 0.752376
+[2000]  fit's auc: 0.753935     val's auc: 0.752396
+[2100]  fit's auc: 0.754038     val's auc: 0.752414
+[2200]  fit's auc: 0.754146     val's auc: 0.752433
+[2300]  fit's auc: 0.754257     val's auc: 0.752452
+[2400]  fit's auc: 0.754365     val's auc: 0.75247
+[2500]  fit's auc: 0.754468     val's auc: 0.752482
+[2600]  fit's auc: 0.754561     val's auc: 0.752495
+[2700]  fit's auc: 0.754662     val's auc: 0.752506
+[2800]  fit's auc: 0.754762     val's auc: 0.752519
+[2900]  fit's auc: 0.754859     val's auc: 0.75253
+[3000]  fit's auc: 0.754962     val's auc: 0.752537
 Early stopping, best iteration is:
-[2651]  fit's auc: 0.751914     val's auc: 0.750402
+[3040]  fit's auc: 0.755        val's auc: 0.75254
+question_difficulty           16091354
+avg_correct                    4318988
+user_expo_avg_correct           777277
+user_question_count             255582
+user_question_avg_duration      176852
+timestamp                       155585
+part                            148109
+user_lecture_count              116211
+bundle_size                      66972
+bundle_position                   7822

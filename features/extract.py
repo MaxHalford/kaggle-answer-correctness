@@ -191,6 +191,12 @@ class Part(Extractor):
         return questions['part']
 
 
+class Timestamp(Extractor):
+
+    def transform(self, questions):
+        return questions['timestamp']
+
+
 class BundleSize(Extractor):
 
     def transform(self, questions):
@@ -270,6 +276,94 @@ class UserLectureCount(StatefulExtractor):
         return counts
 
 
+class UserQuestionAvgDuration(StatefulExtractor):
+
+    def __init__(self):
+        self.stats = pd.DataFrame(columns=['mean', 'size'], dtype=float)
+
+    def update(self, questions, prev_group):
+
+        # Initialize statistics for new users
+        new = pd.Index(questions['user_id']).difference(self.stats.index)
+        if len(new) > 0:
+            init_stats = pd.DataFrame({'mean': 0, 'size': 0}, index=new)
+            self.stats = self.stats.append(init_stats)
+
+        if len(prev_group) == 0:
+            return
+
+        prev_times = (
+            questions[questions['prior_question_elapsed_time'].notnull()]
+            .rename(columns={'prior_question_elapsed_time': 'elapsed_time'})
+            [['user_id', 'elapsed_time']]
+            .groupby('user_id')
+            .first()['elapsed_time']
+        )
+
+        stats = (
+            prev_group
+            .query('content_type_id == 0')
+            .join(prev_times, on='user_id', how='inner')
+            .groupby('user_id')['elapsed_time']
+            .agg(['mean', 'size'])
+        )
+
+        # Update the old statistics with the new statistics
+        users = stats.index
+        m = stats.loc[users, 'size']
+        self.stats.loc[users, 'size'] += m
+        n = self.stats.loc[users, 'size']
+        avg = self.stats.loc[users, 'mean']
+        new_avg = stats.loc[users, 'mean']
+        self.stats.loc[users, 'mean'] += m * (new_avg - avg) / n
+
+    def transform(self, questions):
+        avgs = self.stats.loc[questions['user_id'], 'mean']
+        avgs.index = questions.index
+        avgs = avgs.rename('user_question_avg_duration')
+        return avgs
+
+
+class UserExpAvgCorrect(StatefulExtractor):
+
+    def __init__(self, prior_mean, alpha):
+        self.prior_mean = prior_mean
+        self.alpha = alpha
+        self.stats = pd.Series(dtype=float)
+
+    def __str__(self):
+        return f'{self.__class__.__name__}_prior_mean={self.prior_mean}_alpha={self.alpha}'
+
+    def update(self, questions, prev_group):
+
+        # Initialize statistics for new users
+        new = pd.Index(questions['user_id']).difference(self.stats.index)
+        if len(new) > 0:
+            init_stats = pd.Series(self.prior_mean, index=new)
+            self.stats = self.stats.append(init_stats)
+
+        # Nothing to do if nothing happened before
+        if len(prev_group) == 0:
+            return
+
+        new_stats = (
+            prev_group
+            .query('content_type_id == 0')
+            .groupby('user_id')['answered_correctly']
+            .agg('mean')
+        )
+
+        old_stats = self.stats[new_stats.index]
+
+        self.stats[new_stats.index] = self.alpha * new_stats + (1 - self.alpha) * old_stats
+
+    def transform(self, questions):
+        avgs = self.stats[questions['user_id']]
+        avgs.index = questions.index
+        avgs = avgs.rename('user_expo_avg_correct')
+        return avgs
+
+
 # Extracting features for the training set
 
 extractors = [
@@ -279,7 +373,10 @@ extractors = [
     BundleSize(),
     BundlePosition(),
     UserQuestionCount(),
-    UserLectureCount()
+    UserLectureCount(),
+    UserQuestionAvgDuration(),
+    Timestamp(),
+    UserExpAvgCorrect(.5, .2)
 ]
 
 # We filter out the extractors that have already been run]
