@@ -48,22 +48,32 @@ Note that the dataset needs creating for the first upload:
 kaggle datasets init --path dataset
 ```
 
-
-
 Training until validation scores don't improve for 20 rounds
-[100]   fit's auc: 0.746696     val's auc: 0.74666
-[200]   fit's auc: 0.747205     val's auc: 0.747097
-[300]   fit's auc: 0.7476       val's auc: 0.747462
-[400]   fit's auc: 0.74789      val's auc: 0.747739
-[500]   fit's auc: 0.748086     val's auc: 0.74792
-[600]   fit's auc: 0.748234     val's auc: 0.748035
-[700]   fit's auc: 0.748344     val's auc: 0.748102
-[800]   fit's auc: 0.748419     val's auc: 0.748132
-[900]   fit's auc: 0.748497     val's auc: 0.748171
-[1000]  fit's auc: 0.748573     val's auc: 0.748206
-[1100]  fit's auc: 0.748647     val's auc: 0.74824
-[1200]  fit's auc: 0.748721     val's auc: 0.74827
-[1300]  fit's auc: 0.748784     val's auc: 0.748286
-[1400]  fit's auc: 0.748831     val's auc: 0.748294
+[100]   fit's auc: 0.746732     val's auc: 0.746691
+[200]   fit's auc: 0.747706     val's auc: 0.747595
+[300]   fit's auc: 0.748557     val's auc: 0.748429
+[400]   fit's auc: 0.749175     val's auc: 0.749036
+[500]   fit's auc: 0.749642     val's auc: 0.749472
+[600]   fit's auc: 0.749978     val's auc: 0.749756
+[700]   fit's auc: 0.750197     val's auc: 0.749918
+[800]   fit's auc: 0.750352     val's auc: 0.750007
+[900]   fit's auc: 0.750475     val's auc: 0.750067
+[1000]  fit's auc: 0.750587     val's auc: 0.750116
+[1100]  fit's auc: 0.750684     val's auc: 0.750155
+[1200]  fit's auc: 0.750769     val's auc: 0.750183
+[1300]  fit's auc: 0.750857     val's auc: 0.750212
+[1400]  fit's auc: 0.75094      val's auc: 0.750237
+[1500]  fit's auc: 0.751024     val's auc: 0.750257
+[1600]  fit's auc: 0.751106     val's auc: 0.750277
+[1700]  fit's auc: 0.751187     val's auc: 0.750294
+[1800]  fit's auc: 0.751266     val's auc: 0.750309
+[1900]  fit's auc: 0.751348     val's auc: 0.750323
+[2000]  fit's auc: 0.751429     val's auc: 0.750339
+[2100]  fit's auc: 0.751505     val's auc: 0.750353
+[2200]  fit's auc: 0.751582     val's auc: 0.750365
+[2300]  fit's auc: 0.75166      val's auc: 0.750377
+[2400]  fit's auc: 0.751732     val's auc: 0.750385
+[2500]  fit's auc: 0.751806     val's auc: 0.750393
+[2600]  fit's auc: 0.751878     val's auc: 0.750399
 Early stopping, best iteration is:
-[1403]  fit's auc: 0.748832     val's auc: 0.748294
+[2651]  fit's auc: 0.751914     val's auc: 0.750402

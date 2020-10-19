@@ -1,6 +1,5 @@
 import glob
 
-import chime
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
@@ -48,7 +47,7 @@ model = lgb.train(
         'learning_rate': 0.01,
         'objective': 'binary',
         'metrics': 'auc',
-        'boost_from_average': False
+        'boost_from_average': True
     },
     train_set=fit,
     num_boost_round=10_000,
@@ -57,6 +56,9 @@ model = lgb.train(
     early_stopping_rounds=20,
     verbose_eval=100
 )
+
+importances = model.feature_importance(importance_type='gain').astype(int)
+print(pd.Series(importances, index=X_fit.columns).sort_values(ascending=False))
 
 val_score = metrics.roc_auc_score(y_val, model.predict(X_val))
 model.save_model(f'models/model_{val_score:.4f}.lgb')

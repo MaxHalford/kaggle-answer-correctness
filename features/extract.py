@@ -204,14 +204,82 @@ class BundlePosition(Extractor):
         return questions.groupby('user_id').cumcount().rename('bundle_position')
 
 
+class UserQuestionCount(StatefulExtractor):
+
+    def __init__(self):
+        self.counts = pd.Series(dtype='uint16', index=pd.Index([], name='user_id'))
+
+    def update(self, questions, prev_group):
+
+        # Initialize statistics for new users
+        new = pd.Index(questions['user_id']).difference(self.counts.index)
+        if len(new) > 0:
+            self.counts = self.counts.append(pd.Series(0, index=new))
+
+        # Nothing to do if nothing happened before
+        if len(prev_group) == 0:
+            return
+
+        new_counts = (
+            prev_group
+            .query('content_type_id == 0')
+            .groupby('user_id')
+            .size()
+            .astype('uint16')
+        )
+
+        self.counts[new_counts.index] += new_counts
+
+    def transform(self, questions):
+        counts = self.counts[questions['user_id']]
+        counts.index = questions.index
+        counts = counts.rename('user_question_count')
+        return counts
+
+
+class UserLectureCount(StatefulExtractor):
+
+    def __init__(self):
+        self.counts = pd.Series(dtype='uint16', index=pd.Index([], name='user_id'))
+
+    def update(self, questions, prev_group):
+
+        # Initialize statistics for new users
+        new = pd.Index(questions['user_id']).difference(self.counts.index)
+        if len(new) > 0:
+            self.counts = self.counts.append(pd.Series(0, index=new))
+
+        # Nothing to do if nothing happened before
+        if len(prev_group) == 0:
+            return
+
+        new_counts = (
+            prev_group
+            .query('content_type_id == 1')
+            .groupby('user_id')
+            .size()
+            .astype('uint16')
+        )
+
+        self.counts[new_counts.index] += new_counts
+
+    def transform(self, questions):
+        counts = self.counts[questions['user_id']]
+        counts.index = questions.index
+        counts = counts.rename('user_lecture_count')
+        return counts
+
+
 # Extracting features for the training set
 
 extractors = [
     AvgCorrect(.6, 20),
     QuestionDifficulty(train),
     Part(),
-    #BundleSize(),
-    #BundlePosition()
+    BundleSize(),
+    BundlePosition(),
+    UserQuestionCount(),
+    UserLectureCount()
 ]
 
 # We filter out the extractors that have already been run]
