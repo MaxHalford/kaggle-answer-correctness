@@ -8,6 +8,7 @@ Solution to the Riiid! Answer Correctness Prediction competition on Kaggle
 - https://arxiv.org/pdf/1912.03072.pdf
 - https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/188901
 - https://www.wikiwand.com/en/Harmonic_mean
+- https://arxiv.org/pdf/2002.07033.pdf
 
 ## To do
 
@@ -19,8 +20,8 @@ Solution to the Riiid! Answer Correctness Prediction competition on Kaggle
 - Extract features from a (deep) factorization machine
 - Extract features from a graph representation
 - Figure out time by reading [this](https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/189351#) and [this](https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/189465)
-- Exponentially weighted means
 - Make sure extractors that should be stateful are in fact stateful
+- Learn and use optuna
 
 ## Reproducing results
 
@@ -37,7 +38,6 @@ python models/train.py
 python dataset/package.py
 kaggle datasets version --path dataset --message "$(date)" --delete-old-versions
 
-python kernel/package.py
 kaggle kernels push --path kernel
 kaggle kernels status riiid-test-answer-prediction-kernel
 open https://www.kaggle.com/maxhalford/riiid-test-answer-prediction-kernel

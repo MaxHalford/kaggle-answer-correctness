@@ -1,4 +1,6 @@
 import abc
+import collections
+import functools
 import inspect
 import pathlib
 import pickle
@@ -364,6 +366,27 @@ class UserExpAvgCorrect(StatefulExtractor):
         return avgs
 
 
+class DejaVu(StatefulExtractor):
+
+    def __init__(self):
+        self.counts = collections.defaultdict(functools.partial(collections.defaultdict, int))
+
+    def update(self, questions, prev_group):
+
+        if len(prev_group) == 0:
+            return
+
+        #for r in prev_group.query('answered_correctly == 1').itertuples():
+        for r in prev_group.itertuples():
+            self.counts[r.content_id][r.user_id] += 1
+
+    def transform(self, questions):
+        deja = pd.Series((self.counts[r.content_id][r.user_id] for r in questions.itertuples()))
+        deja.index = questions.index
+        deja = deja.rename('deja_vu')
+        return deja
+
+
 # Extracting features for the training set
 
 extractors = [
@@ -376,7 +399,8 @@ extractors = [
     UserLectureCount(),
     UserQuestionAvgDuration(),
     Timestamp(),
-    UserExpAvgCorrect(.5, .2)
+    UserExpAvgCorrect(.5, .2),
+    DejaVu()
 ]
 
 # We filter out the extractors that have already been run]
