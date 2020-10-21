@@ -22,6 +22,7 @@ Solution to the Riiid! Answer Correctness Prediction competition on Kaggle
 - Figure out time by reading [this](https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/189351#) and [this](https://www.kaggle.com/c/riiid-test-answer-prediction/discussion/189465)
 - Make sure extractors that should be stateful are in fact stateful
 - Learn and use optuna
+- Include `type_of` feature, maybe combine it with `part`?
 
 ## Reproducing results
 

@@ -369,7 +369,8 @@ class UserExpAvgCorrect(StatefulExtractor):
 class DejaVu(StatefulExtractor):
 
     def __init__(self):
-        self.counts = collections.defaultdict(functools.partial(collections.defaultdict, int))
+        self.correct = collections.defaultdict(functools.partial(collections.defaultdict, int))
+        self.incorrect = collections.defaultdict(functools.partial(collections.defaultdict, int))
 
     def update(self, questions, prev_group):
 
@@ -378,12 +379,17 @@ class DejaVu(StatefulExtractor):
 
         #for r in prev_group.query('answered_correctly == 1').itertuples():
         for r in prev_group.itertuples():
-            self.counts[r.content_id][r.user_id] += 1
+            if r.answered_correctly == 1:
+                self.correct[r.content_id][r.user_id] += 1
+            elif r.answered_correctly == 0:
+                self.incorrect[r.content_id][r.user_id] += 1
 
     def transform(self, questions):
-        deja = pd.Series((self.counts[r.content_id][r.user_id] for r in questions.itertuples()))
+        deja = pd.DataFrame({
+            'deja_vu_correct': [self.correct[r.content_id][r.user_id] for r in questions.itertuples()],
+            'deja_vu_incorrect': [self.incorrect[r.content_id][r.user_id] for r in questions.itertuples()],
+        })
         deja.index = questions.index
-        deja = deja.rename('deja_vu')
         return deja
 
 
