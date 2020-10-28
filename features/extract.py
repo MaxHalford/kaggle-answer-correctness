@@ -8,6 +8,7 @@ import sys
 
 import chime
 import pandas as pd
+from scipy import stats
 import tqdm
 
 
@@ -48,6 +49,8 @@ else:
 #print(train.head(5))
 
 
+# Parts
+
 question_parts = (
     pd.read_csv('data/questions.csv', usecols=['question_id', 'part'])
     .rename(columns={'question_id': 'content_id'})
@@ -73,7 +76,6 @@ parts = parts.map({
 })
 parts = parts.astype('category')
 parts.to_pickle('features/parts.pkl')
-
 
 # We can now iterate over batches of the training data. The idea is that each batch is going to
 # behave like the data that the `env.iter_test` function will yield in the Kaggle kernel. We will
@@ -393,6 +395,36 @@ class DejaVu(StatefulExtractor):
         return deja
 
 
+class QuestionNChoices(Extractor):
+
+    def __init__(self, train):
+        self.n_choices = (
+            train
+            .query('content_type_id == 0')
+            .groupby('content_id')['user_answer'].max()
+            .astype('uint8')
+        ).rename('question_n_choices')
+        self.n_choices += 1
+
+    def transform(self, questions):
+        n_choices = self.n_choices.loc[questions['content_id']]
+        n_choices.index = questions.index
+        return n_choices
+
+
+class QuestionAnswerEntropy(Extractor):
+
+    def __init__(self, train):
+        question_answer_dist = train.query('content_type_id == 0').groupby(['content_id', 'user_answer']).size()
+        self.question_answer_entropy = question_answer_dist.groupby('content_id').apply(lambda counts: stats.entropy(counts + 50))
+        self.question_answer_entropy = self.question_answer_entropy.rename('question_answer_entropy')
+
+    def transform(self, questions):
+        question_answer_entropy = self.question_answer_entropy.loc[questions['content_id']]
+        question_answer_entropy.index = questions.index
+        return question_answer_entropy
+
+
 # Extracting features for the training set
 
 extractors = [
@@ -406,7 +438,9 @@ extractors = [
     UserQuestionAvgDuration(),
     Timestamp(),
     UserExpAvgCorrect(.5, .2),
-    DejaVu()
+    DejaVu(),
+    QuestionNChoices(train),
+    QuestionAnswerEntropy(train)
 ]
 
 # We filter out the extractors that have already been run]
