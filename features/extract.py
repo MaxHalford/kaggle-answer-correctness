@@ -1,10 +1,12 @@
 import abc
 import collections
+import datetime as dt
 import functools
 import inspect
 import pathlib
 import pickle
 import sys
+import time
 
 import chime
 import pandas as pd
@@ -118,6 +120,8 @@ class Extractor(abc.ABC):
 
 class StatefulExtractor(Extractor):
 
+    update_during_train = True
+
     @abc.abstractmethod
     def update(self, questions, prev_group):
         pass
@@ -171,20 +175,42 @@ class AvgCorrect(StatefulExtractor):
         return avgs
 
 
-class QuestionDifficulty(Extractor):
+class QuestionDifficulty(StatefulExtractor):
+
+    update_during_train = False
 
     def __init__(self, train):
-        stats = train.query('content_type_id == 0').groupby('content_id')['answered_correctly'].agg(['mean', 'size'])
-        self.bayes_avg = stats.eval('(mean * size + .6 * 100) / (size + 100)').rename('question_difficulty')
+        self.stats = (
+            train
+            .query('content_type_id == 0')
+            .groupby('content_id')['answered_correctly']
+            .agg(['mean', 'size'])
+        )
+
+    def update(self, questions, prev_group):
+
+        if len(prev_group) == 0:
+            return
+
+        # Compute the new statistics
+        stats = (
+            prev_group
+            .query('content_type_id == 0')
+            .groupby('content_id')['answered_correctly']
+            .agg(['mean', 'size'])
+        )
+
+        # Update the old statistics with the new statistics
+        question_ids = stats.index
+        m = stats.loc[question_ids, 'size']
+        self.stats.loc[question_ids, 'size'] += m
+        n = self.stats.loc[question_ids, 'size']
+        avg = self.stats.loc[question_ids, 'mean']
+        new_avg = stats.loc[question_ids, 'mean']
+        self.stats.loc[question_ids, 'mean'] += m * (new_avg - avg) / n
 
     def transform(self, questions):
-
-        new = pd.Index(questions['content_id']).difference(self.bayes_avg.index)
-        if len(new) > 0:
-            prior = pd.Series({'mean': .6}, index=new)
-            self.bayes_avg = self.bayes_avg.append(prior)
-
-        avgs = self.bayes_avg.loc[questions['content_id']]
+        avgs = self.stats.loc[questions['content_id'], 'mean'].rename('question_difficulty')
         avgs.index = questions.index
         return avgs
 
@@ -379,7 +405,6 @@ class DejaVu(StatefulExtractor):
         if len(prev_group) == 0:
             return
 
-        #for r in prev_group.query('answered_correctly == 1').itertuples():
         for r in prev_group.itertuples():
             if r.answered_correctly == 1:
                 self.correct[r.content_id][r.user_id] += 1
@@ -425,6 +450,32 @@ class QuestionAnswerEntropy(Extractor):
         return question_answer_entropy
 
 
+class UserPartCount(StatefulExtractor):
+
+    def __init__(self):
+        self.correct = collections.defaultdict(functools.partial(collections.defaultdict, int))
+        self.incorrect = collections.defaultdict(functools.partial(collections.defaultdict, int))
+
+    def update(self, questions, prev_group):
+
+        if len(prev_group) == 0:
+            return
+
+        for r in prev_group.itertuples():
+            if r.answered_correctly == 1:
+                self.correct[r.part][r.user_id] += 1
+            elif r.answered_correctly == 0:
+                self.incorrect[r.part][r.user_id] += 1
+
+    def transform(self, questions):
+        deja = pd.DataFrame({
+            'part_correct': [self.correct[r.part][r.user_id] for r in questions.itertuples()],
+            'part_incorrect': [self.incorrect[r.part][r.user_id] for r in questions.itertuples()],
+        })
+        deja.index = questions.index
+        return deja
+
+
 # Extracting features for the training set
 
 extractors = [
@@ -440,7 +491,8 @@ extractors = [
     UserExpAvgCorrect(.5, .2),
     DejaVu(),
     QuestionNChoices(train),
-    QuestionAnswerEntropy(train)
+    QuestionAnswerEntropy(train),
+    UserPartCount()
 ]
 
 # We filter out the extractors that have already been run]
@@ -455,20 +507,42 @@ if not extractors:
     chime.warning()
     sys.exit('All of the features have already been extracted.')
 
+time_taken = collections.defaultdict(lambda: {'update': 0, 'transform': 0})
+
 # Now we loop through the training data in group order
 for i, (questions, prev_group) in tqdm.tqdm(enumerate(iter_groups(train)), total=10_000):
 
     for extractor in extractors:
 
-        if isinstance(extractor, StatefulExtractor):
+        # Update
+        if isinstance(extractor, StatefulExtractor) and extractor.update_during_train:
+            tic = time.time()
             extractor.update(questions, prev_group)
+            time_taken[str(extractor)]['update'] += time.time() - tic
+
+        # Transform
+        tic = time.time()
         features = extractor.transform(questions)
+        time_taken[str(extractor)]['transform'] += time.time() - tic
+
+        # Sanity checks
+        if isinstance(features, pd.Series):
+            assert features.isnull().sum() == 0
+        else:
+            assert features.isnull().sum().sum() == 0
 
         path = f'features/{extractor}_features.csv'
         if i == 0:
             features.to_csv(path)
         else:
             features.to_csv(path, mode='a', header=False)
+
+# Display time taken by each extractor
+print(
+    pd.DataFrame.from_dict(time_taken, orient='index')
+    .sort_values('update')
+    .applymap(lambda x: str(dt.timedelta(seconds=x)))
+)
 
 # We save the extractors so that we can reuse them during the testing phase
 for extractor in extractors:

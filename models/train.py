@@ -44,10 +44,12 @@ val = lgb.Dataset(X_val, y_val, reference=fit)
 
 model = lgb.train(
     params={
-        'learning_rate': 0.01,
+        'learning_rate': 0.05,
         'objective': 'binary',
-        'metrics': 'auc',
-        'boost_from_average': True
+        'metric': 'auc',
+        'boost_from_average': True,
+        'max_bin': 800,
+        'num_leaves': 80
     },
     train_set=fit,
     num_boost_round=10_000,
