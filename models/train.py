@@ -29,16 +29,16 @@ features = features.join(targets)
 targets = features.pop('answered_correctly')
 features.head()
 
-np.random.seed(42)
-samples = np.random.choice(targets.index, size=3_000_000, replace=False)
+#np.random.seed(42)
+#samples = np.random.choice(targets.index, size=3_000_000, replace=False)
+#X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
+#    features.loc[samples], targets.loc[samples],
+#    random_state=42
+#)
 X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
-    features.loc[samples], targets.loc[samples],
+    features, targets,
     random_state=42
 )
-# X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
-#    features, targets,
-#    random_state=42
-# )
 fit = lgb.Dataset(X_fit, y_fit)
 val = lgb.Dataset(X_val, y_val, reference=fit)
 
