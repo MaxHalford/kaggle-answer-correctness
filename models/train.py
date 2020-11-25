@@ -7,38 +7,23 @@ from sklearn import metrics
 from sklearn import model_selection
 
 
-nrows = None  # set to a number for debugging
-features = pd.concat(
-    (
-        pd.read_csv(f, index_col=0, nrows=nrows)
-        for f in glob.glob('features/*.csv')
-    ),
-    axis='columns'
-)
-features['part'] = features['part'].astype('category')
-print(features.head())
-
-# Let's join the target variable.
-targets = pd.read_csv(
-    'data/train.csv',
-    usecols=['row_id', 'answered_correctly'],
-    index_col='row_id',
-    nrows=nrows
-)
-features = features.join(targets)
+features = pd.read_pickle('models/train.pkl')
 targets = features.pop('answered_correctly')
-features.head()
 
-#np.random.seed(42)
-#samples = np.random.choice(targets.index, size=3_000_000, replace=False)
-#X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
-#    features.loc[samples], targets.loc[samples],
-#    random_state=42
-#)
+# Sampling
+np.random.seed(42)
+samples = np.random.choice(targets.index, size=3_000_000, replace=False)
 X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
-    features, targets,
-    random_state=42
+   features.loc[samples], targets.loc[samples],
+   random_state=42
 )
+
+# Full
+# X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
+#     features, targets,
+#     random_state=42
+# )
+
 fit = lgb.Dataset(X_fit, y_fit)
 val = lgb.Dataset(X_val, y_val, reference=fit)
 

@@ -127,7 +127,7 @@ class StatefulExtractor(Extractor):
         pass
 
 
-class AvgCorrect(StatefulExtractor):
+class UserAvgCorrect(StatefulExtractor):
 
     def __init__(self, prior_mean, prior_size):
         self.prior_mean = prior_mean
@@ -137,7 +137,7 @@ class AvgCorrect(StatefulExtractor):
     def __str__(self):
         return f'{self.__class__.__name__}_prior_mean={self.prior_mean}_prior_size={self.prior_size}'
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
         # Initialize statistics for new users
         new = pd.Index(questions['user_id']).difference(self.stats.index)
@@ -149,13 +149,12 @@ class AvgCorrect(StatefulExtractor):
             self.stats = self.stats.append(prior)
 
         # Nothing to do if nothing happened before
-        if len(prev_group) == 0:
+        if len(prev_questions) == 0:
             return
 
         # Compute the new statistics
         stats = (
-            prev_group
-            .query('content_type_id == 0')
+            prev_questions
             .groupby('user_id')['answered_correctly']
             .agg(['mean', 'size'])
         )
@@ -170,12 +169,12 @@ class AvgCorrect(StatefulExtractor):
         self.stats.loc[users, 'mean'] += m * (new_avg - avg) / n
 
     def transform(self, questions):
-        avgs = self.stats.loc[questions['user_id'], 'mean'].rename('avg_correct')
+        avgs = self.stats.loc[questions['user_id'], 'mean'].rename('user_avg_correct')
         avgs.index = questions.index
         return avgs
 
 
-class QuestionDifficulty(StatefulExtractor):
+class QuestionAvgCorrect(StatefulExtractor):
 
     update_during_train = False
 
@@ -187,15 +186,14 @@ class QuestionDifficulty(StatefulExtractor):
             .agg(['mean', 'size'])
         )
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
-        if len(prev_group) == 0:
+        if len(prev_questions) == 0:
             return
 
         # Compute the new statistics
         stats = (
-            prev_group
-            .query('content_type_id == 0')
+            prev_questions
             .groupby('content_id')['answered_correctly']
             .agg(['mean', 'size'])
         )
@@ -210,7 +208,7 @@ class QuestionDifficulty(StatefulExtractor):
         self.stats.loc[question_ids, 'mean'] += m * (new_avg - avg) / n
 
     def transform(self, questions):
-        avgs = self.stats.loc[questions['content_id'], 'mean'].rename('question_difficulty')
+        avgs = self.stats.loc[questions['content_id'], 'mean'].rename('question_avg_correct')
         avgs.index = questions.index
         return avgs
 
@@ -245,7 +243,7 @@ class UserQuestionCount(StatefulExtractor):
     def __init__(self):
         self.counts = pd.Series(dtype='uint16', index=pd.Index([], name='user_id'))
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
         # Initialize statistics for new users
         new = pd.Index(questions['user_id']).difference(self.counts.index)
@@ -253,12 +251,11 @@ class UserQuestionCount(StatefulExtractor):
             self.counts = self.counts.append(pd.Series(0, index=new))
 
         # Nothing to do if nothing happened before
-        if len(prev_group) == 0:
+        if len(prev_questions) == 0:
             return
 
         new_counts = (
-            prev_group
-            .query('content_type_id == 0')
+            prev_questions
             .groupby('user_id')
             .size()
             .astype('uint16')
@@ -278,7 +275,7 @@ class UserLectureCount(StatefulExtractor):
     def __init__(self):
         self.counts = pd.Series(dtype='uint16', index=pd.Index([], name='user_id'))
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
         # Initialize statistics for new users
         new = pd.Index(questions['user_id']).difference(self.counts.index)
@@ -286,12 +283,11 @@ class UserLectureCount(StatefulExtractor):
             self.counts = self.counts.append(pd.Series(0, index=new))
 
         # Nothing to do if nothing happened before
-        if len(prev_group) == 0:
+        if len(prev_lectures) == 0:
             return
 
         new_counts = (
-            prev_group
-            .query('content_type_id == 1')
+            prev_lectures
             .groupby('user_id')
             .size()
             .astype('uint16')
@@ -311,7 +307,7 @@ class UserQuestionAvgDuration(StatefulExtractor):
     def __init__(self):
         self.stats = pd.DataFrame(columns=['mean', 'size'], dtype=float)
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
         # Initialize statistics for new users
         new = pd.Index(questions['user_id']).difference(self.stats.index)
@@ -331,8 +327,7 @@ class UserQuestionAvgDuration(StatefulExtractor):
         )
 
         stats = (
-            prev_group
-            .query('content_type_id == 0')
+            prev_questions
             .join(prev_times, on='user_id', how='inner')
             .groupby('user_id')['elapsed_time']
             .agg(['mean', 'size'])
@@ -364,7 +359,7 @@ class UserExpAvgCorrect(StatefulExtractor):
     def __str__(self):
         return f'{self.__class__.__name__}_prior_mean={self.prior_mean}_alpha={self.alpha}'
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
         # Initialize statistics for new users
         new = pd.Index(questions['user_id']).difference(self.stats.index)
@@ -377,8 +372,7 @@ class UserExpAvgCorrect(StatefulExtractor):
             return
 
         new_stats = (
-            prev_group
-            .query('content_type_id == 0')
+            prev_questions
             .groupby('user_id')['answered_correctly']
             .agg('mean')
         )
@@ -394,18 +388,18 @@ class UserExpAvgCorrect(StatefulExtractor):
         return avgs
 
 
-class DejaVu(StatefulExtractor):
+class UserQuestionDejaVu(StatefulExtractor):
 
     def __init__(self):
         self.correct = collections.defaultdict(functools.partial(collections.defaultdict, int))
         self.incorrect = collections.defaultdict(functools.partial(collections.defaultdict, int))
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
-        if len(prev_group) == 0:
+        if len(prev_questions) == 0:
             return
 
-        for r in prev_group.itertuples():
+        for r in prev_questions.itertuples():
             if r.answered_correctly == 1:
                 self.correct[r.content_id][r.user_id] += 1
             elif r.answered_correctly == 0:
@@ -418,23 +412,6 @@ class DejaVu(StatefulExtractor):
         })
         deja.index = questions.index
         return deja
-
-
-class QuestionNChoices(Extractor):
-
-    def __init__(self, train):
-        self.n_choices = (
-            train
-            .query('content_type_id == 0')
-            .groupby('content_id')['user_answer'].max()
-            .astype('uint8')
-        ).rename('question_n_choices')
-        self.n_choices += 1
-
-    def transform(self, questions):
-        n_choices = self.n_choices.loc[questions['content_id']]
-        n_choices.index = questions.index
-        return n_choices
 
 
 class QuestionAnswerEntropy(Extractor):
@@ -450,18 +427,18 @@ class QuestionAnswerEntropy(Extractor):
         return question_answer_entropy
 
 
-class UserPartCount(StatefulExtractor):
+class UserQuestionPartCount(StatefulExtractor):
 
     def __init__(self):
         self.correct = collections.defaultdict(functools.partial(collections.defaultdict, int))
         self.incorrect = collections.defaultdict(functools.partial(collections.defaultdict, int))
 
-    def update(self, questions, prev_group):
+    def update(self, questions, prev_group, prev_questions, prev_lectures):
 
         if len(prev_group) == 0:
             return
 
-        for r in prev_group.itertuples():
+        for r in prev_questions.itertuples():
             if r.answered_correctly == 1:
                 self.correct[r.part][r.user_id] += 1
             elif r.answered_correctly == 0:
@@ -479,8 +456,8 @@ class UserPartCount(StatefulExtractor):
 # Extracting features for the training set
 
 extractors = [
-    AvgCorrect(.6, 20),
-    QuestionDifficulty(train),
+    UserAvgCorrect(.6, 30),
+    QuestionAvgCorrect(train),
     Part(),
     BundleSize(),
     BundlePosition(),
@@ -489,19 +466,18 @@ extractors = [
     UserQuestionAvgDuration(),
     Timestamp(),
     UserExpAvgCorrect(.5, .2),
-    DejaVu(),
-    QuestionNChoices(train),
+    UserQuestionDejaVu(),
     QuestionAnswerEntropy(train),
-    UserPartCount()
+    UserQuestionPartCount()
 ]
 
 # We filter out the extractors that have already been run]
-for i, extractor in reversed(list(enumerate(extractors))):
-    if pathlib.Path(f'features/{extractor}_features.csv').exists():
+for i, ex in reversed(list(enumerate(extractors))):
+    if pathlib.Path(f'features/{ex}_features.csv').exists():
         extractors.pop(i)
-        print(f'- Skipping {extractor}')
-    else:
-        print(f'- Doing {extractor}')
+        print(f'- Skipping {ex}')
+for ex in extractors:
+    print(f'- Doing {ex}')
 
 if not extractors:
     chime.warning()
@@ -512,18 +488,25 @@ time_taken = collections.defaultdict(lambda: {'update': 0, 'transform': 0})
 # Now we loop through the training data in group order
 for i, (questions, prev_group) in tqdm.tqdm(enumerate(iter_groups(train)), total=10_000):
 
-    for extractor in extractors:
+    if len(prev_group):
+        prev_questions = prev_group.query('content_type_id == 0')
+        prev_lectures = prev_group.query('content_type_id == 1')
+    else:
+        prev_questions = prev_group
+        prev_lectures = prev_group
 
-        # Update
-        if isinstance(extractor, StatefulExtractor) and extractor.update_during_train:
+    for ex in extractors:
+
+        # Update the extractor
+        if isinstance(ex, StatefulExtractor) and ex.update_during_train:
             tic = time.time()
-            extractor.update(questions, prev_group)
-            time_taken[str(extractor)]['update'] += time.time() - tic
+            ex.update(questions, prev_group, prev_questions, prev_lectures)
+            time_taken[str(ex)]['update'] += time.time() - tic
 
-        # Transform
+        # Extract features
         tic = time.time()
-        features = extractor.transform(questions)
-        time_taken[str(extractor)]['transform'] += time.time() - tic
+        features = ex.transform(questions)
+        time_taken[str(ex)]['transform'] += time.time() - tic
 
         # Sanity checks
         if isinstance(features, pd.Series):
@@ -531,7 +514,8 @@ for i, (questions, prev_group) in tqdm.tqdm(enumerate(iter_groups(train)), total
         else:
             assert features.isnull().sum().sum() == 0
 
-        path = f'features/{extractor}_features.csv'
+        # Save/append the features
+        path = f'features/{ex}_features.csv'
         if i == 0:
             features.to_csv(path)
         else:
