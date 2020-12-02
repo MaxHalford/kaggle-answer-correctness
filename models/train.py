@@ -1,7 +1,4 @@
-import glob
-
 import lightgbm as lgb
-import numpy as np
 import pandas as pd
 from sklearn import metrics
 from sklearn import model_selection
@@ -10,19 +7,10 @@ from sklearn import model_selection
 features = pd.read_pickle('models/train.pkl')
 targets = features.pop('answered_correctly')
 
-# Sampling
-np.random.seed(42)
-samples = np.random.choice(targets.index, size=3_000_000, replace=False)
 X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
-   features.loc[samples], targets.loc[samples],
+   features, targets,
    random_state=42
 )
-
-# Full
-# X_fit, X_val, y_fit, y_val = model_selection.train_test_split(
-#     features, targets,
-#     random_state=42
-# )
 
 fit = lgb.Dataset(X_fit, y_fit)
 val = lgb.Dataset(X_val, y_val, reference=fit)

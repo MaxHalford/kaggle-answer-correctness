@@ -30,20 +30,24 @@ Solution to the Riiid! Answer Correctness Prediction competition on Kaggle
 ## Reproducing results
 
 ```sh
+# Use the same environment as on Kaggle kernels
 conda create -n kaggle python=3.7.6 -y
 conda activate kaggle
 pip install -r requirements.txt
 
-rm features/*.csv
-rm features/*.pkl
+# Extract features on the training set and save feature extractors for the test phase
+rm features/*.csv features/*.pkl
 python features/extract.py
 
+# Train a model and save it
 python models/build_training_set.py
 python models/train.py
 
+# Compile the files to upload to Kaggle
 python dataset/package.py
 kaggle datasets version --path dataset --message "$(date)" --delete-old-versions
 
+# Push the kernel associated to the above dataset for the test phase
 kaggle kernels push --path kernel
 kaggle kernels status riiid-test-answer-prediction-kernel
 open https://www.kaggle.com/maxhalford/riiid-test-answer-prediction-kernel
@@ -74,8 +78,27 @@ UserPartCount                               0:03:44.622387  0:07:16.949918
 AvgCorrect_prior_mean=0.6_prior_size=20     0:03:52.157035  0:00:13.083721
 UserQuestionAvgDuration                     0:04:36.966671  0:00:11.863548
 DejaVu                                      0:04:38.258979  0:14:25.225591
+QuestionCount                                      0:00:00  0:00:06.634506
+UserRelevantLectureCount                    0:00:13.460764  0:03:56.869746
+UserHadExplanationTotal                     0:02:15.969187  0:00:12.249619
+UserQuestionTagCounter                      0:09:01.066594  0:11:33.838792
 
-### Local accuracy on 3M observations
+### Current accuracy
+
+Training until validation scores don't improve for 20 rounds
+[100]   fit's auc: 0.763363     val's auc: 0.761949
+[200]   fit's auc: 0.766936     val's auc: 0.763994
+[300]   fit's auc: 0.768864     val's auc: 0.764326
+[400]   fit's auc: 0.770645     val's auc: 0.764575
+[500]   fit's auc: 0.772296     val's auc: 0.764721
+[600]   fit's auc: 0.773896     val's auc: 0.764828
+[700]   fit's auc: 0.775403     val's auc: 0.764879
+Early stopping, best iteration is:
+[705]   fit's auc: 0.775469     val's auc: 0.764886
+
+### Best local accuracy on 3M observations
+
+0.769 on public LB
 
 [LightGBM] [Info] Start training from score 0.652179
 Training until validation scores don't improve for 20 rounds
