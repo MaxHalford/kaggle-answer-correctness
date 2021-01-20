@@ -1,6 +1,6 @@
 # kaggle-answer-correctness
 
-This is my solution to the [Riiid! Answer Correctness Prediction competition on Kaggle](https://www.kaggle.com/c/riiid-test-answer-prediction/). I gave waaaaaay before the end so I didn't do very at all on the private leaderboard. However, I'm quite happy with the code quality of this project. It's a solid reference for implementing online feature extractors.
+This is my solution to the [Riiid! Answer Correctness Prediction competition on Kaggle](https://www.kaggle.com/c/riiid-test-answer-prediction/). I gave up waaaaaay before the end so I didn't do very at all on the private leaderboard. However, I'm quite happy with the code quality of this project. It's a solid reference for implementing online feature extractors.
 
 ```sh
 # Use the same environment as on Kaggle kernels
